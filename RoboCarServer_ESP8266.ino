@@ -1,7 +1,7 @@
 #include <ESP8266WiFi.h>
 
 const char* ssid = "*****";
-const char* password = "******";
+const char* password = "*****";
 
 void jsonResponse(WiFiClient &client, String json) {
 	client.println("HTTP/1.1 200 OK");
@@ -11,7 +11,7 @@ void jsonResponse(WiFiClient &client, String json) {
 	client.stop();
 }
 
-void htmlResponse(WiFiClient &client){
+void htmlResponse(WiFiClient &client) {
 	client.println("HTTP/1.1 200 OK");
 	client.println("Content-Type: text/html");
 	client.println(""); //  do not forget this one
@@ -74,9 +74,22 @@ void loop() {
 	//digitalWrite(ledPin, value);
 
 	if (request.indexOf("api") != -1) {
-		jsonResponse(client, "{\"status\":\"succsess\"}");
+		if (request.indexOf("/dist") != -1) {//
+			if (Serial.available()) {
+				String resp = "{\"dist\":\"" + Serial.readStringUntil('\r') + "\"}";
+				jsonResponse(client, resp);
+			}
+		}
+		else if (request.indexOf("signal")) {
+			long rssi = WiFi.RSSI();
+			String str = "{\"signal\":\"";
+			jsonResponse(client, str + rssi + "\"}");
+		}
+		else {
+			jsonResponse(client, "{\"stat\":\"ok\"}");
+		}
 	}
-	else{
+	else {
 		htmlResponse(client);
 	}
 
