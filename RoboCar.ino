@@ -16,7 +16,10 @@ const int threshold = 8; // 8 inches
 byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
 
 int leftDist = 0, rightDist = 0;
+
 Servo myservo;
+//AltSoftSerial wifiSerial;
+
 void setup() {
 	Serial.begin(9600);
 
@@ -41,37 +44,54 @@ void loop() {
 		motor_stop();
 		delay(500);
 	}
-	else if (avgDist <= threshold) {
-		// obstacle ahead - must react
+	if (avgDist <= threshold) {
 		motor_stop();
-		delay(100);
-		down();
-		delay(600);
-		motor_stop();
-
-		int turn = random(800, 1500);
-
-		Serial.println("looking left");
-		int ld = look_left();
-		delay(1000);
-
-		Serial.println("looking right");
-		int rd = look_right();
-		delay(1000);
-		look_straight();
-
-		if (ld >= rd) {
-			Serial.println("turning right");
-			right();
+		if (Serial.available()) {
+			String request = Serial.readStringUntil('\r');
+			if (request.indexOf("?a=d") != -1) {
+				down();
+			}
+			else if (request.indexOf("?a=l") != -1) {
+				left();
+			}
+			else if (request.indexOf("?a=r") != -1) {
+				right();
+			}
+			else if (request.indexOf("?a=s") != -1) {
+				motor_stop();
+			}
 		}
-		else {
-			Serial.println("turning left");
-			left();
-		}
-		delay(turn);
 	}
 	else {
-		up();
+		if (Serial.available()) {
+			String request = Serial.readStringUntil('\r');
+			if (request.indexOf("?a=u") != -1) {
+				up();
+			}
+			else if (request.indexOf("?a=d") != -1) {
+				down();
+			}
+			else if (request.indexOf("?a=l") != -1) {
+				left();
+			}
+			else if (request.indexOf("?a=r") != -1) {
+				right();
+			}
+			else if (request.indexOf("?a=s") != -1) {
+				motor_stop();
+			}
+
+			if (request.indexOf("?l=l") != -1) { //look left
+				look_left();
+			}
+			else if (request.indexOf("?l=r") != -1) { //look right
+				look_right();
+			}
+			else if (request.indexOf("?l=s") != -1) { //look straight
+				look_straight();
+			}
+		}
+
 	}
 	delay(10);
 }
@@ -97,13 +117,13 @@ int getAvgDistance() {
 	int sum = 0;
 	for (int i = 0; i < 3; i++) {
 		int inches = getDistanceInInches();
-		Serial.print(inches);
-		Serial.print(",");
+		//    Serial.print(inches);
+		//    Serial.print(",");
 		sum += inches;
 	}
 	int avg = sum / 3;
-	Serial.print("avg = ");
-	Serial.println(avg);
+	//  Serial.print("avg = ");
+	//  Serial.println(avg);
 	return avg;
 }
 
@@ -129,7 +149,7 @@ int getDistanceInInches() {
 
 	// convert the time into a distance
 	inches = microsecondsToInches(duration);
-	Serial.println(inches);
+	//  Serial.println(inches);
 	return inches;
 }
 
@@ -141,7 +161,7 @@ void motor_stop() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], LOW);
-	delay(25);
+	//  Serial.println("STOP");
 }
 
 void left() {
@@ -150,6 +170,7 @@ void left() {
 
 	digitalWrite(motor_right[0], HIGH);
 	digitalWrite(motor_right[1], LOW);
+	//  Serial.println("LEFT");
 }
 
 void right() {
@@ -158,6 +179,7 @@ void right() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], HIGH);
+	//  Serial.println("RIGHT");
 }
 
 void up() {
@@ -166,6 +188,7 @@ void up() {
 
 	digitalWrite(motor_right[0], HIGH);
 	digitalWrite(motor_right[1], LOW);
+	//  Serial.println("UP");
 }
 
 void down() {
@@ -174,6 +197,7 @@ void down() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], HIGH);
+	//  Serial.println("DOWN");
 }
 long microsecondsToInches(long microseconds)
 {
