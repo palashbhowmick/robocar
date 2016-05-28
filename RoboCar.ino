@@ -1,8 +1,14 @@
-// --------------------------------------------------------------------------- Motors
 int motor_left[] = { 8, 9 };
 int motor_right[] = { 10, 11 };
 
-// --------------------------------------------------------------------------- Setup
+const int trigPin = 2;
+const int echoPin = 3;
+
+const int threshold = 8;// 8 inches
+
+byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
+
+
 void setup() {
 	Serial.begin(9600);
 	// Setup motors
@@ -13,14 +19,6 @@ void setup() {
 	}
 }
 
-const int trigPin = 12;
-const int echoPin = 2;
-
-const int threshold = 8;// 8 inches
-
-byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
-
-// --------------------------------------------------------------------------- Loop
 void loop() {
 	int inches = getDistanceInInches();
 	Serial.println(inches);
@@ -29,11 +27,9 @@ void loop() {
 		motor_stop();
 		delay(250);
 		down();
-		delay(500);
+		delay(750);
 		right();
-		delay(500);
-		left();
-		delay(500);
+		delay(1000);
 	}
 	else {
 		up();
