@@ -2,6 +2,10 @@
 int motor_left[] = { 8, 9 };
 int motor_right[] = { 10, 11 };
 
+
+const int trigPin = 2;
+const int echoPin = 4;
+
 // --------------------------------------------------------------------------- Setup
 void setup() {
 	Serial.begin(9600);
@@ -21,60 +25,42 @@ void setup() {
 	Serial.println("0) STOP");
 }
 
-const int trigPin = 2;
-const int echoPin = 4;
+boolean obstacle = false;
 // --------------------------------------------------------------------------- Loop
 void loop() {
 	int inches = getDistanceInInches();
-	if (inches > 8) {
-		drive_forward();
-		delay(200);
+	if (inches < 8) {
+		obstacle = true;
 	}
-	else {
-		motor_stop();
-		delay(100);
-		drive_backward();
-		delay(250);
-		turn_left();
-		delay(2000);
-		inches = getDistanceInInches();
-		if (inches <= 8) {
-			turn_right();
-			delay(4000);
-			inches = getDistanceInInches();
-			if (inches <= 8) {
-				turn_left();
-				delay(2000);
+	if (Serial.available()) {
+		Serial.print(">");
+		char c = Serial.read();
+		if (c == '0') {
+			Serial.println("stop");
+			motor_stop();
+		}
+		else if (c == '3') {
+			if (obstacle) {
+				Serial.println("can't go");
+			}
+			else {
+				drive_forward();
 			}
 		}
+		else if (c == '4') {
+			Serial.println("back");
+			drive_backward();
+		}
+		else if (c == '1') {
+			Serial.println("left");
+			turn_left();
+		}
+		else if (c == '2') {
+			Serial.println("right");
+			turn_right();
+		}
 	}
-	delay(100);
-}
-
-int getDistanceInInches() {
-	// establish variables for duration of the ping,
-	// and the distance result in inches and centimeters:
-	long duration, inches, cm;
-
-	// The sensor is triggered by a HIGH pulse of 10 or more microseconds.
-	// Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
-	pinMode(trigPin, OUTPUT);
-	digitalWrite(trigPin, LOW);
-	delayMicroseconds(2);
-	digitalWrite(trigPin, HIGH);
-	delayMicroseconds(10);
-	digitalWrite(trigPin, LOW);
-
-	// Read the signal from the sensor: a HIGH pulse whose
-	// duration is the time (in microseconds) from the sending
-	// of the ping to the reception of its echo off of an object.
-	pinMode(echoPin, INPUT);
-	duration = pulseIn(echoPin, HIGH);
-
-	// convert the time into a distance
-	inches = microsecondsToInches(duration);
-	Serial.println(inches);
-	return inches;
+	delay(10);
 }
 
 // --------------------------------------------------------------------------- Drive
@@ -120,6 +106,30 @@ void turn_right() {
 	digitalWrite(motor_right[1], HIGH);
 }
 
+int getDistanceInInches() {
+	// establish variables for duration of the ping,
+	// and the distance result in inches and centimeters:
+	long duration, inches, cm;
+
+	// The sensor is triggered by a HIGH pulse of 10 or more microseconds.
+	// Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
+	pinMode(trigPin, OUTPUT);
+	digitalWrite(trigPin, LOW);
+	delayMicroseconds(2);
+	digitalWrite(trigPin, HIGH);
+	delayMicroseconds(10);
+	digitalWrite(trigPin, LOW);
+
+	// Read the signal from the sensor: a HIGH pulse whose
+	// duration is the time (in microseconds) from the sending
+	// of the ping to the reception of its echo off of an object.
+	pinMode(echoPin, INPUT);
+	duration = pulseIn(echoPin, HIGH);
+
+	// convert the time into a distance
+	inches = microsecondsToInches(duration);
+	return inches;
+}
 long microsecondsToInches(long microseconds)
 {
 	// According to Parallax's datasheet for the PING))), there are
@@ -129,4 +139,3 @@ long microsecondsToInches(long microseconds)
 	// See: http://www.parallax.com/dl/docs/prod/acc/28015-PING-v1.3.pdf
 	return microseconds / 74 / 2;
 }
-
