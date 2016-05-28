@@ -4,6 +4,7 @@
 #define DIST_TRG_PIN 2
 #define DIST_ECH_PIN 3
 
+
 // motor pin config
 byte motor_left[] = { 8, 9 };
 byte motor_right[] = { 10, 11 };
@@ -12,6 +13,7 @@ byte motor_right[] = { 10, 11 };
 #define SERVO_PIN 6
 
 const int threshold = 8; // 8 inches
+#define MAX_DIST 50
 
 byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
 
@@ -19,6 +21,9 @@ int leftDist = 0, rightDist = 0;
 
 Servo myservo;
 //AltSoftSerial wifiSerial;
+
+int mode = 0;//0=stop,1=wifi rc, 2=auto
+
 
 void setup() {
 	Serial.begin(9600);
@@ -41,24 +46,29 @@ void setup() {
 void loop() {
 	int avgDist = getAvgDistance();
 	if (avgDist == 0) {
-		motor_stop();
-		delay(500);
+		avgDist = MAX_DIST;
 	}
+
 	if (avgDist <= threshold) {
-		motor_stop();
+		if (mode != 0)
+			motor_stop();
 		if (Serial.available()) {
 			String request = Serial.readStringUntil('\r');
 			if (request.indexOf("?a=d") != -1) {
 				down();
+				mode = 1; //wifi rc
 			}
 			else if (request.indexOf("?a=l") != -1) {
 				left();
+				mode = 1; //wifi rc
 			}
 			else if (request.indexOf("?a=r") != -1) {
 				right();
+				mode = 1; //wifi rc
 			}
 			else if (request.indexOf("?a=s") != -1) {
 				motor_stop();
+				mode = 0; //wifi rc
 			}
 		}
 	}
@@ -67,21 +77,25 @@ void loop() {
 			String request = Serial.readStringUntil('\r');
 			if (request.indexOf("?a=u") != -1) {
 				up();
+				mode = 1; //wifi rc
 			}
 			else if (request.indexOf("?a=d") != -1) {
 				down();
+				mode = 1; //wifi rc
 			}
 			else if (request.indexOf("?a=l") != -1) {
 				left();
+				mode = 1; //wifi rc
 			}
 			else if (request.indexOf("?a=r") != -1) {
 				right();
+				mode = 1; //wifi rc
 			}
 			else if (request.indexOf("?a=s") != -1) {
 				motor_stop();
+				mode = 0;
 			}
-
-			if (request.indexOf("?l=l") != -1) { //look left
+			else if (request.indexOf("?l=l") != -1) { //look left
 				look_left();
 			}
 			else if (request.indexOf("?l=r") != -1) { //look right
@@ -90,10 +104,65 @@ void loop() {
 			else if (request.indexOf("?l=s") != -1) { //look straight
 				look_straight();
 			}
+			else if (request.indexOf("/dist") != -1) {
+				Serial.println(getAvgDistance());
+			}
+			else if (request.indexOf("?mode=auto") != -1) {
+				mode = 2; //auto
+			}
 		}
 
 	}
-	delay(10);
+
+	String str;
+	switch (mode) {
+	case 0:
+		break;
+	case 1:
+		str = (millis() / 1000) + "> Avg Dist:" + avgDist;
+		Serial.println(str);
+		break;
+	case 2:
+		driveAuto();
+		break;
+	}
+}
+
+
+void driveAuto() {
+	int avgDist = getAvgDistance();
+	if (avgDist <= threshold) {
+		// obstacle ahead - must react
+		motor_stop();
+		delay(100);
+		down();
+		delay(600);
+		motor_stop();
+
+		int turn = random(800, 1500);
+
+		Serial.println("looking left");
+		int ld = look_left();
+		delay(500);
+
+		Serial.println("looking right");
+		int rd = look_right();
+		delay(500);
+		look_straight();
+
+		if (ld >= rd) {
+			Serial.println("turning right");
+			right();
+		}
+		else {
+			Serial.println("turning left");
+			left();
+		}
+		delay(turn);
+	}
+	else {
+		up();
+	}
 }
 
 void look_straight() {
@@ -161,7 +230,7 @@ void motor_stop() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], LOW);
-	//  Serial.println("STOP");
+	//  Serial.println("STOP");  
 }
 
 void left() {
