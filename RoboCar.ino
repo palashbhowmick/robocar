@@ -1,51 +1,96 @@
-int motor_left[] = { 8, 9 };
-int motor_right[] = { 10, 11 };
+#include <Servo.h>
 
-const int trigPin = 2;
-const int echoPin = 3;
+// distance sensor pin config
+#define DIST_TRG_PIN 2
+#define DIST_ECH_PIN 3
+
+// motor pin config
+byte motor_left[] = { 8, 9 };
+byte motor_right[] = { 10, 11 };
+
+//servo pin config
+#define SERVO_PIN 6
 
 const int threshold = 8; // 8 inches
 
 byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
 
-
+int leftDist = 0, rightDist = 0;
+Servo myservo;
 void setup() {
 	Serial.begin(9600);
-	// Setup motors
+
+	// random seed
 	randomSeed(analogRead(0));
-	int i;
-	for (i = 0; i < 2; i++) {
+
+	// Setup motors
+	for (int i = 0; i < 2; i++) {
 		pinMode(motor_left[i], OUTPUT);
 		pinMode(motor_right[i], OUTPUT);
 	}
+
+	//setup servo;
+	myservo.attach(SERVO_PIN);
+	look_straight();
+	delay(200);
 }
 
 void loop() {
-	if (getAvgDistance() <= threshold) {
+	int avgDist = getAvgDistance();
+	if (avgDist == 0) {
+		motor_stop();
+		delay(500);
+	}
+	else if (avgDist <= threshold) {
 		// obstacle ahead - must react
 		motor_stop();
 		delay(100);
 		down();
 		delay(600);
-		int rnd = random(2);
+		motor_stop();
+
 		int turn = random(800, 1500);
-		if (rnd == 0) {
-			Serial.print("turning right, ");
-			Serial.println(turn);
+
+		Serial.println("looking left");
+		int ld = look_left();
+		delay(1000);
+
+		Serial.println("looking right");
+		int rd = look_right();
+		delay(1000);
+		look_straight();
+
+		if (ld >= rd) {
+			Serial.println("turning right");
 			right();
 		}
 		else {
-			Serial.print("turning left, ");
-			Serial.println(turn);
+			Serial.println("turning left");
 			left();
 		}
-
 		delay(turn);
 	}
 	else {
 		up();
 	}
 	delay(10);
+}
+
+void look_straight() {
+	myservo.write(90);
+	delay(250);
+}
+
+int look_right() {
+	myservo.write(160);
+	delay(250);
+	return getAvgDistance();
+}
+
+int look_left() {
+	myservo.write(20);
+	delay(250);
+	return getAvgDistance();
 }
 
 int getAvgDistance() {
@@ -69,18 +114,18 @@ int getDistanceInInches() {
 
 	// The sensor is triggered by a HIGH pulse of 10 or more microseconds.
 	// Give a short LOW pulse beforehand to ensure a clean HIGH pulse:
-	pinMode(trigPin, OUTPUT);
-	digitalWrite(trigPin, LOW);
+	pinMode(DIST_TRG_PIN, OUTPUT);
+	digitalWrite(DIST_TRG_PIN, LOW);
 	delayMicroseconds(2);
-	digitalWrite(trigPin, HIGH);
+	digitalWrite(DIST_TRG_PIN, HIGH);
 	delayMicroseconds(10);
-	digitalWrite(trigPin, LOW);
+	digitalWrite(DIST_TRG_PIN, LOW);
 
 	// Read the signal from the sensor: a HIGH pulse whose
 	// duration is the time (in microseconds) from the sending
 	// of the ping to the reception of its echo off of an object.
-	pinMode(echoPin, INPUT);
-	duration = pulseIn(echoPin, HIGH);
+	pinMode(DIST_ECH_PIN, INPUT);
+	duration = pulseIn(DIST_ECH_PIN, HIGH);
 
 	// convert the time into a distance
 	inches = microsecondsToInches(duration);
@@ -139,4 +184,5 @@ long microsecondsToInches(long microseconds)
 	// See: http://www.parallax.com/dl/docs/prod/acc/28015-PING-v1.3.pdf
 	return microseconds / 74 / 2;
 }
+
 
