@@ -7,6 +7,7 @@ const String right = "3cc3b24d";
 const String up = "3cc3926d";
 const String down = "3cc352ad";
 const String stp = "3cc342bd";
+const String cont = "ffffffff";
 
 IRrecv irrecv(RECV_PIN);
 
@@ -16,6 +17,7 @@ decode_results results;
 int motor_left[] = { 8, 9 };
 int motor_right[] = { 10, 11 };
 
+String prev;
 // --------------------------------------------------------------------------- Setup
 void setup() {
 	Serial.begin(9600);
@@ -33,34 +35,41 @@ void setup() {
 void loop() {
 	if (irrecv.decode(&results)) {
 		String c = String(results.value, HEX);
-
 		Serial.print(">");
 		Serial.print(c);
 		Serial.println("<");
+		if (c.equals(cont)) {
+			c = prev;
+		}
 		if (c.equals(stp)) {
 			Serial.println("stop");
 			motor_stop();
+			prev = stp;
 		}
 		else if (c.equals(left)) {
 			Serial.println("left");
 			drive_forward();
+			prev = left;
 		}
 		else if (c.equals(right)) {
 			Serial.println("right");
 			drive_backward();
+			prev = right;
 		}
 		else if (c.equals(up)) {
 			Serial.println("up");
 			turn_left();
+			prev = up;
 		}
 		else if (c.equals(down)) {
 			Serial.println("down");
 			turn_right();
+			prev = down;
 		}
-
 		irrecv.resume(); // Receive the next value
 	}
-	delay(10);
+	delay(100);
+	motor_stop();
 }
 
 // --------------------------------------------------------------------------- Drive
@@ -71,7 +80,6 @@ void motor_stop() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], LOW);
-	delay(25);
 }
 
 void drive_forward() {
