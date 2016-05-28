@@ -4,6 +4,7 @@
 #define DIST_TRG_PIN 2
 #define DIST_ECH_PIN 3
 
+#define WIFI_SWITCH_PIN 12
 
 // motor pin config
 byte motor_left[] = { 8, 9 };
@@ -39,6 +40,8 @@ void setup() {
 		pinMode(motor_right[i], OUTPUT);
 	}
 
+	pinMode(WIFI_SWITCH_PIN, INPUT_PULLUP);
+
 	//setup servo;
 	myservo.attach(SERVO_PIN);
 	look_straight();
@@ -54,6 +57,14 @@ void loop() {
 		lastStateTime = t;
 		//    Serial.println(avgDist);
 	}
+
+	int wifiSwitch = digitalRead(WIFI_SWITCH_PIN);
+
+	if (wifiSwitch == LOW) { //auto via switch
+		driveAuto(avgDist);
+		return;
+	}
+
 
 	int rqstState = -1;
 	boolean obstacle = false;
@@ -159,26 +170,24 @@ void driveAuto(int avgDist) {
 		delay(600);
 		motor_stop();
 
-		int turn = random(800, 1500);
-
-		Serial.println("looking left");
+		//    Serial.println("looking left");
 		int ld = look_left();
 		delay(500);
 
-		Serial.println("looking right");
+		//    Serial.println("looking right");
 		int rd = look_right();
 		delay(500);
 		look_straight();
 
 		if (ld >= rd) {
-			Serial.println("turning right");
-			right();
-		}
-		else {
-			Serial.println("turning left");
+			//      Serial.println("turning left");
 			left();
 		}
-		delay(turn);
+		else {
+			//      Serial.println("turning right");
+			right();
+		}
+		delay(800);
 	}
 	else {
 		up();
