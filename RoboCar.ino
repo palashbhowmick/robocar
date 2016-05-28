@@ -4,7 +4,7 @@ int motor_right[] = { 10, 11 };
 const int trigPin = 2;
 const int echoPin = 3;
 
-const int threshold = 8;// 8 inches
+const int threshold = 8; // 8 inches
 
 byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
 
@@ -12,6 +12,7 @@ byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
 void setup() {
 	Serial.begin(9600);
 	// Setup motors
+	randomSeed(analogRead(0));
 	int i;
 	for (i = 0; i < 2; i++) {
 		pinMode(motor_left[i], OUTPUT);
@@ -20,21 +21,45 @@ void setup() {
 }
 
 void loop() {
-	int inches = getDistanceInInches();
-	Serial.println(inches);
-	if (inches <= threshold) {
+	if (getAvgDistance() <= threshold) {
 		// obstacle ahead - must react
 		motor_stop();
-		delay(250);
+		delay(100);
 		down();
-		delay(750);
-		right();
-		delay(1000);
+		delay(600);
+		int rnd = random(2);
+		int turn = random(800, 1500);
+		if (rnd == 0) {
+			Serial.print("turning right, ");
+			Serial.println(turn);
+			right();
+		}
+		else {
+			Serial.print("turning left, ");
+			Serial.println(turn);
+			left();
+		}
+
+		delay(turn);
 	}
 	else {
 		up();
 	}
 	delay(10);
+}
+
+int getAvgDistance() {
+	int sum = 0;
+	for (int i = 0; i < 3; i++) {
+		int inches = getDistanceInInches();
+		Serial.print(inches);
+		Serial.print(",");
+		sum += inches;
+	}
+	int avg = sum / 3;
+	Serial.print("avg = ");
+	Serial.println(avg);
+	return avg;
 }
 
 int getDistanceInInches() {
