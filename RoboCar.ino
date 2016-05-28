@@ -15,10 +15,12 @@ byte motor_right[] = { 10, 11 };
 const int threshold = 8; // 8 inches
 #define MAX_DIST 50
 
-byte prevStep = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
+int currState = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
 
 int leftDist = 0, rightDist = 0;
 
+long lastStateTime = 0;
+int avgDist = MAX_DIST;
 Servo myservo;
 //AltSoftSerial wifiSerial;
 
@@ -43,94 +45,112 @@ void setup() {
 	delay(200);
 }
 
+
 void loop() {
-	int avgDist = getAvgDistance();
+	unsigned long t = millis();
+
+	if ((t - lastStateTime) > 250) {
+		avgDist = getAvgDistance();
+		lastStateTime = t;
+		//    Serial.println(avgDist);
+	}
+
+	int rqstState = -1;
+	boolean obstacle = false;
 	if (avgDist == 0) {
 		avgDist = MAX_DIST;
 	}
 
-	if (avgDist <= threshold) {
-		if (mode != 0)
-			motor_stop();
-		if (Serial.available()) {
-			String request = Serial.readStringUntil('\r');
-			if (request.indexOf("?a=d") != -1) {
-				down();
-				mode = 1; //wifi rc
-			}
-			else if (request.indexOf("?a=l") != -1) {
-				left();
-				mode = 1; //wifi rc
-			}
-			else if (request.indexOf("?a=r") != -1) {
-				right();
-				mode = 1; //wifi rc
-			}
-			else if (request.indexOf("?a=s") != -1) {
-				motor_stop();
-				mode = 0; //wifi rc
-			}
-		}
-	}
-	else {
-		if (Serial.available()) {
-			String request = Serial.readStringUntil('\r');
-			if (request.indexOf("?a=u") != -1) {
-				up();
-				mode = 1; //wifi rc
-			}
-			else if (request.indexOf("?a=d") != -1) {
-				down();
-				mode = 1; //wifi rc
-			}
-			else if (request.indexOf("?a=l") != -1) {
-				left();
-				mode = 1; //wifi rc
-			}
-			else if (request.indexOf("?a=r") != -1) {
-				right();
-				mode = 1; //wifi rc
-			}
-			else if (request.indexOf("?a=s") != -1) {
-				motor_stop();
-				mode = 0;
-			}
-			else if (request.indexOf("?l=l") != -1) { //look left
-				look_left();
-			}
-			else if (request.indexOf("?l=r") != -1) { //look right
-				look_right();
-			}
-			else if (request.indexOf("?l=s") != -1) { //look straight
-				look_straight();
-			}
-			else if (request.indexOf("/dist") != -1) {
-				Serial.println(getAvgDistance());
-			}
-			else if (request.indexOf("?mode=auto") != -1) {
-				mode = 2; //auto
-			}
-		}
-
+	if (avgDist <= threshold) { // obstacle ahead
+		obstacle = true;
 	}
 
-	String str;
+
+	if (obstacle && currState == 1) {
+		motor_stop();
+	}
+
+	// get remote command/request (if any)
+	if (Serial.available()) {
+		String request = Serial.readStringUntil('\r');
+		if (request.indexOf("?a=u") != -1) {
+			rqstState = 1;
+			mode = 1; //wifi rc
+		}
+		else if (request.indexOf("?a=d") != -1) {
+			rqstState = 2;
+			mode = 1; //wifi rc
+		}
+		else if (request.indexOf("?a=l") != -1) {
+			mode = 1; //wifi rc
+			rqstState = 3;
+		}
+		else if (request.indexOf("?a=r") != -1) {
+			mode = 1; //wifi rc
+			rqstState = 4;
+		}
+		else if (request.indexOf("?a=s") != -1) {
+			mode = 0;
+			rqstState = 0;
+		}
+		else if (request.indexOf("?l=l") != -1) { //look left
+			look_left();
+		}
+		else if (request.indexOf("?l=r") != -1) { //look right
+			look_right();
+		}
+		else if (request.indexOf("?l=s") != -1) { //look straight
+			look_straight();
+		}
+		else if (request.indexOf("/dist") != -1) {
+			//      Serial.println(getAvgDistance());
+		}
+		else if (request.indexOf("?mode=auto") != -1) {
+			mode = 2; //auto
+		}
+	}
+
 	switch (mode) {
 	case 0:
+		motor_stop();
+		currState = 0;
 		break;
 	case 1:
-		str = (millis() / 1000) + "> Avg Dist:" + avgDist;
-		Serial.println(str);
+		if (rqstState >= 0 && currState != rqstState) {
+			switch (rqstState) {
+			case 0:
+				motor_stop();
+				currState = 0;
+				break;
+			case 1:
+				if (!obstacle) {
+					up();
+					currState = 1;
+				}
+				break;
+			case 2:
+				down();
+				currState = 2;
+				break;
+			case 3:
+				left();
+				currState = 3;
+				break;
+			case 4:
+				right();
+				currState = 4;
+				break;
+			}
+		}
 		break;
 	case 2:
-		driveAuto();
+		driveAuto(avgDist);
 		break;
 	}
 }
 
 
-void driveAuto() {
-	int avgDist = getAvgDistance();
+void driveAuto(int avgDist) {
 	if (avgDist <= threshold) {
 		// obstacle ahead - must react
 		motor_stop();
@@ -170,13 +190,13 @@ void look_straight() {
 	delay(250);
 }
 
-int look_right() {
+int look_left() {
 	myservo.write(160);
 	delay(250);
 	return getAvgDistance();
 }
 
-int look_left() {
+int look_right() {
 	myservo.write(20);
 	delay(250);
 	return getAvgDistance();
@@ -230,7 +250,7 @@ void motor_stop() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], LOW);
-	//  Serial.println("STOP");  
+	//  Serial.println("STOP");
 }
 
 void left() {
