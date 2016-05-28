@@ -6,6 +6,8 @@
 
 #define WIFI_SWITCH_PIN 12
 
+#define DEBUG false
+
 // motor pin config
 byte motor_left[] = { 8, 9 };
 byte motor_right[] = { 10, 11 };
@@ -23,6 +25,7 @@ int leftDist = 0, rightDist = 0;
 long lastStateTime = 0;
 int avgDist = MAX_DIST;
 Servo myservo;
+
 //AltSoftSerial wifiSerial;
 
 int mode = 0;//0=stop,1=wifi rc, 2=auto
@@ -52,13 +55,17 @@ void setup() {
 void loop() {
 	unsigned long t = millis();
 
+	int wifiSwitch = digitalRead(WIFI_SWITCH_PIN);
+
 	if ((t - lastStateTime) > 250) {
 		avgDist = getAvgDistance();
 		lastStateTime = t;
-		//    Serial.println(avgDist);
+		if (DEBUG) {
+			Serial.print("avg distance:");
+			Serial.println(avgDist);
+		}
 	}
 
-	int wifiSwitch = digitalRead(WIFI_SWITCH_PIN);
 
 	if (wifiSwitch == LOW) { //auto via switch
 		driveAuto(avgDist);
@@ -84,6 +91,9 @@ void loop() {
 	// get remote command/request (if any)
 	if (Serial.available()) {
 		String request = Serial.readStringUntil('\r');
+		if (DEBUG) {
+			Serial.println(request);
+		}
 		if (request.indexOf("?a=u") != -1) {
 			rqstState = 1;
 			mode = 1; //wifi rc
@@ -112,6 +122,40 @@ void loop() {
 		}
 		else if (request.indexOf("?l=s") != -1) { //look straight
 			look_straight();
+		}
+		else if (request.indexOf("?look=") != -1) { //look at specific angle
+			int posA = request.indexOf("?look=");
+			posA += 6;
+			int posB = posA + 3;
+			int deg = convertToInt(request.substring(posA, posB));
+			if (DEBUG) {
+				Serial.println(deg);
+			}
+			look(deg);
+		}
+		else if (request.indexOf("?lt=") != -1) { //turn at specific angle
+			int posA = request.indexOf("?lt=");
+			posA += 4;
+			int posB = posA + 4;
+			int milli = convertToInt(request.substring(posA, posB));
+			if (DEBUG) {
+				Serial.println(milli);
+			}
+			left();
+			delay(milli);
+			motor_stop();
+		}
+		else if (request.indexOf("?rt=") != -1) { //turn at specific angle
+			int posA = request.indexOf("?rt=");
+			posA += 4;
+			int posB = posA + 4;
+			int milli = convertToInt(request.substring(posA, posB));
+			if (DEBUG) {
+				Serial.println(milli);
+			}
+			right();
+			delay(milli);
+			motor_stop();
 		}
 		else if (request.indexOf("/dist") != -1) {
 			//      Serial.println(getAvgDistance());
@@ -158,8 +202,32 @@ void loop() {
 		driveAuto(avgDist);
 		break;
 	}
+	delay(5);
 }
 
+//int getVal(String request,String key,int size){
+//      int posA = request.indexOf(key);
+//      posA += key.length();
+//      int posB = posA + size;
+//      int val = convertToInt(request.substring(posA, posB));
+//      Serial.print("key=");
+//      Serial.print(key);
+//      Serial.print(",val=");
+//      Serial.println(val);
+//}
+
+int convertToInt(String str) {
+	String inString;
+	for (int i = 0; i <= str.length(); i++) {
+		if (isDigit(str[i])) {
+			inString += (char)str[i];
+		}
+		else {
+			continue;
+		}
+	}
+	return inString.toInt();
+}
 
 void driveAuto(int avgDist) {
 	if (avgDist <= threshold) {
@@ -170,21 +238,29 @@ void driveAuto(int avgDist) {
 		delay(600);
 		motor_stop();
 
-		//    Serial.println("looking left");
+		if (DEBUG) {
+			Serial.println("looking left");
+		}
 		int ld = look_left();
 		delay(500);
 
-		//    Serial.println("looking right");
+		if (DEBUG) {
+			Serial.println("looking right");
+		}
 		int rd = look_right();
 		delay(500);
 		look_straight();
 
 		if (ld >= rd) {
-			//      Serial.println("turning left");
+			if (DEBUG) {
+				Serial.println("turning left");
+			}
 			left();
 		}
 		else {
-			//      Serial.println("turning right");
+			if (DEBUG) {
+				Serial.println("turning right");
+			}
 			right();
 		}
 		delay(800);
@@ -196,6 +272,11 @@ void driveAuto(int avgDist) {
 
 void look_straight() {
 	myservo.write(90);
+	delay(250);
+}
+
+void look(int degree) {
+	myservo.write(degree);
 	delay(250);
 }
 
@@ -259,7 +340,9 @@ void motor_stop() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], LOW);
-	//  Serial.println("STOP");
+	if (DEBUG) {
+		Serial.println("STOP");
+	}
 }
 
 void left() {
@@ -268,7 +351,9 @@ void left() {
 
 	digitalWrite(motor_right[0], HIGH);
 	digitalWrite(motor_right[1], LOW);
-	//  Serial.println("LEFT");
+	if (DEBUG) {
+		Serial.println("LEFT");
+	}
 }
 
 void right() {
@@ -277,7 +362,9 @@ void right() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], HIGH);
-	//  Serial.println("RIGHT");
+	if (DEBUG) {
+		Serial.println("RIGHT");
+	}
 }
 
 void up() {
@@ -286,7 +373,9 @@ void up() {
 
 	digitalWrite(motor_right[0], HIGH);
 	digitalWrite(motor_right[1], LOW);
-	//  Serial.println("UP");
+	if (DEBUG) {
+		Serial.println("UP");
+	}
 }
 
 void down() {
@@ -295,7 +384,9 @@ void down() {
 
 	digitalWrite(motor_right[0], LOW);
 	digitalWrite(motor_right[1], HIGH);
-	//  Serial.println("DOWN");
+	if (DEBUG) {
+		Serial.println("DOWN");
+	}
 }
 long microsecondsToInches(long microseconds)
 {
