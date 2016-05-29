@@ -1,4 +1,9 @@
+#include "RequestParser.h"
 #include <Servo.h>
+
+#define DEBUG true
+
+//PIN configurations
 
 // distance sensor pin config
 #define DIST_TRG_PIN 2
@@ -6,7 +11,8 @@
 
 #define WIFI_SWITCH_PIN 12
 
-#define DEBUG false
+#define LED_LEFT_PIN 4
+#define LED_RIGHT_PIN 5
 
 // motor pin config
 byte motor_left[] = { 8, 9 };
@@ -15,8 +21,12 @@ byte motor_right[] = { 10, 11 };
 //servo pin config
 #define SERVO_PIN 6
 
+//other settings
 const int threshold = 8; // 8 inches
 #define MAX_DIST 50
+
+
+//global variables
 
 int currState = 0; // 0-stop,1-frd,2-bck,3-lt,4-rt
 
@@ -24,16 +34,19 @@ int leftDist = 0, rightDist = 0;
 
 long lastStateTime = 0;
 int avgDist = MAX_DIST;
-Servo myservo;
-
-//AltSoftSerial wifiSerial;
 
 int mode = 0;//0=stop,1=wifi rc, 2=auto
 
+int wifiSwitchPrevState=-1;
+Servo myservo;
+RequestParser p;
 
 void setup() {
 	Serial.begin(9600);
 
+	if (DEBUG){
+		Serial.println("Starting RoboCar..");
+	}
 	// random seed
 	randomSeed(analogRead(0));
 
@@ -43,21 +56,28 @@ void setup() {
 		pinMode(motor_right[i], OUTPUT);
 	}
 
+	pinMode(LED_LEFT_PIN, OUTPUT);
+	pinMode(LED_RIGHT_PIN, OUTPUT);
+
 	pinMode(WIFI_SWITCH_PIN, INPUT_PULLUP);
 
 	//setup servo;
 	myservo.attach(SERVO_PIN);
+	
 	look_straight();
-	delay(200);
+
+	flashLED();
+	if (DEBUG){
+		Serial.println("Ready!");
+	}
 }
 
 
-void loop() {
-	unsigned long t = millis();
+void loop() {	
+	
+	unsigned long t = millis();	
 
-	int wifiSwitch = digitalRead(WIFI_SWITCH_PIN);
-
-	if ((t - lastStateTime) > 250) {
+	if ((t - lastStateTime) > 250 && (mode==2 || (currState!=0 && currState!=2))) {
 		avgDist = getAvgDistance();
 		lastStateTime = t;
 		if (DEBUG) {
@@ -66,11 +86,28 @@ void loop() {
 		}
 	}
 
-
-	if (wifiSwitch == LOW) { //auto via switch
-		driveAuto(avgDist);
-		return;
+	int wifiSwitch = digitalRead(WIFI_SWITCH_PIN);
+	
+	if (wifiSwitchPrevState == -1 || wifiSwitch != wifiSwitchPrevState){
+		//wifi switch toggled
+		wifiSwitchPrevState = wifiSwitch;
+		if (wifiSwitch == LOW) { //auto via switch		
+			mode = 2;//auto
+			if (DEBUG){
+				Serial.println("AUTO Mode enabled");
+			}
+			driveAuto(avgDist);
+			return;
+		}
+		else{
+			if (DEBUG){
+				Serial.println("AUTO Mode disabled");
+			}
+			mode = 0;//stop
+		}
 	}
+
+	
 
 
 	int rqstState = -1;
@@ -85,90 +122,111 @@ void loop() {
 
 
 	if (obstacle && currState == 1) {
-		motor_stop();
-	}
+		flashLED();
+		if (currState != 0){
+			currState = 0;
+			motor_stop();
+		}		
+	} 
 
 	// get remote command/request (if any)
 	if (Serial.available()) {
-		String request = Serial.readStringUntil('\r');
-		if (DEBUG) {
+		
+		String request = Serial.readStringUntil('\r');		
+		if (DEBUG){
+			Serial.print("raw request=");
 			Serial.println(request);
 		}
-		if (request.indexOf("?a=u") != -1) {
-			rqstState = 1;
-			mode = 1; //wifi rc
-		}
-		else if (request.indexOf("?a=d") != -1) {
-			rqstState = 2;
-			mode = 1; //wifi rc
-		}
-		else if (request.indexOf("?a=l") != -1) {
-			mode = 1; //wifi rc
-			rqstState = 3;
-		}
-		else if (request.indexOf("?a=r") != -1) {
-			mode = 1; //wifi rc
-			rqstState = 4;
-		}
-		else if (request.indexOf("?a=s") != -1) {
-			mode = 0;
-			rqstState = 0;
-		}
-		else if (request.indexOf("?l=l") != -1) { //look left
-			look_left();
-		}
-		else if (request.indexOf("?l=r") != -1) { //look right
-			look_right();
-		}
-		else if (request.indexOf("?l=s") != -1) { //look straight
-			look_straight();
-		}
-		else if (request.indexOf("?look=") != -1) { //look at specific angle
-			int posA = request.indexOf("?look=");
-			posA += 6;
-			int posB = posA + 3;
-			int deg = convertToInt(request.substring(posA, posB));
-			if (DEBUG) {
-				Serial.println(deg);
+		
+		boolean t = p.parse(request);		    
+		if (t)
+		{						
+			String key = p.getKey();
+			String val = p.getValue();
+			if (DEBUG){
+				Serial.print("key=");
+				Serial.println(key);
+				Serial.print("value=");
+				Serial.println(val);
 			}
-			look(deg);
-		}
-		else if (request.indexOf("?lt=") != -1) { //turn at specific angle
-			int posA = request.indexOf("?lt=");
-			posA += 4;
-			int posB = posA + 4;
-			int milli = convertToInt(request.substring(posA, posB));
-			if (DEBUG) {
-				Serial.println(milli);
+			if (key == "a"){
+				mode = 1; //wifi rc
+				if (val=="u") {
+					rqstState = 1;					
+				}
+				else if (val == "d") {
+					rqstState = 2;					
+				}
+				else if (val == "l") {					
+					rqstState = 3;
+				}
+				else if (val == "r") {					
+					rqstState = 4;
+				}
+				else if (val == "s") {
+					mode = 0;
+					rqstState = 0;
+				}
 			}
-			left();
-			delay(milli);
-			motor_stop();
-		}
-		else if (request.indexOf("?rt=") != -1) { //turn at specific angle
-			int posA = request.indexOf("?rt=");
-			posA += 4;
-			int posB = posA + 4;
-			int milli = convertToInt(request.substring(posA, posB));
-			if (DEBUG) {
-				Serial.println(milli);
+			else if (key=="l"){
+				if (val == "l") { //look left
+					look_left();
+				}
+				else if (val == "r") { //look right
+					look_right();
+				}
+				else if (val == "s") { //look straight
+					look_straight();
+				}
 			}
-			right();
-			delay(milli);
-			motor_stop();
+			else if (key == "look"){				
+				int deg = convertToInt(val);
+				if (DEBUG) {
+					Serial.println(deg);
+				}
+				look(deg);
+			}
+			else if (key == "lt"){				
+				int milli = convertToInt(val);
+				if (DEBUG) {
+					Serial.println(milli);
+				}
+				left();
+				delay(milli);
+				motor_stop();
+			}
+			else if (key == "rt"){				
+				int milli = convertToInt(val);
+				if (DEBUG) {
+					Serial.println(milli);
+				}
+				right();
+				delay(milli);
+				motor_stop();
+			}
+			else if (key == "led" && val.length() == 2){				
+				uint8_t bit0 = val[0] == '0' ? LOW : HIGH;
+				uint8_t bit1 = val[1] == '0' ? LOW : HIGH;					
+				digitalWrite(LED_LEFT_PIN, bit0);
+				digitalWrite(LED_RIGHT_PIN, bit1);																					
+			}
+			else if (key == "mode" && val=="auto"){
+				mode = 2;
+			}
 		}
-		else if (request.indexOf("/dist") != -1) {
-			//      Serial.println(getAvgDistance());
-		}
-		else if (request.indexOf("?mode=auto") != -1) {
-			mode = 2; //auto
+		else{
+			if (DEBUG){
+				Serial.println("invalid request - parse error");
+			}			
 		}
 	}
-
+	
 	switch (mode) {
 	case 0:
-		motor_stop();
-		currState = 0;
+		if (currState != 0){
+			motor_stop();
+			currState = 0;
+		}		
 		break;
 	case 1:
 		if (rqstState >= 0 && currState != rqstState) {
@@ -201,20 +259,10 @@ void loop() {
 	case 2:
 		driveAuto(avgDist);
 		break;
-	}
+	}	
 	delay(5);
 }
 
-//int getVal(String request,String key,int size){
-//      int posA = request.indexOf(key);
-//      posA += key.length();
-//      int posB = posA + size;
-//      int val = convertToInt(request.substring(posA, posB));
-//      Serial.print("key=");
-//      Serial.print(key);
-//      Serial.print(",val=");
-//      Serial.println(val);
-//}
 
 int convertToInt(String str) {
 	String inString;
@@ -232,10 +280,12 @@ int convertToInt(String str) {
 void driveAuto(int avgDist) {
 	if (avgDist <= threshold) {
 		// obstacle ahead - must react
+		flashLED();
+		currState = 0;
 		motor_stop();
-		delay(100);
+		delay(100);		
 		down();
-		delay(600);
+		delay(400);
 		motor_stop();
 
 		if (DEBUG) {
@@ -266,10 +316,22 @@ void driveAuto(int avgDist) {
 		delay(800);
 	}
 	else {
-		up();
+		if (currState != 1){
+			currState = 1;
+			up();
+		}		
 	}
 }
-
+void flashLED(){
+	for (int i = 0; i <= 3; i++){
+		digitalWrite(LED_LEFT_PIN, HIGH);
+		digitalWrite(LED_RIGHT_PIN, HIGH);
+		delay(50);
+		digitalWrite(LED_LEFT_PIN, LOW);
+		digitalWrite(LED_RIGHT_PIN, LOW);
+		delay(50);
+	}	
+}
 void look_straight() {
 	myservo.write(90);
 	delay(250);
