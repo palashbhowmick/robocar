@@ -1,13 +1,15 @@
 
 /*****************************************************
- * Date: 23 july 2022
- * Written by: Palash Bhowmick 
+ * Date: 23 July 2022
+ * Written by: Palash Bhowmick
  * ***************************************************/
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+#include "html.h"
+#include "secrets.h"
 
-const char *ssid = "Palash-Wifi";
-const char *password = "palash-wifi@2019";
+const char *ssid = SECRET_SSID;
+const char *password = SECRET_PASS;
 
 // Motor driver L293D pin congifuration
 int a0 = 15; // GPIO-15, D8 of nodemcu esp8266
@@ -44,6 +46,7 @@ void setup()
   Serial.println("WiFi connected");
 
   server.on("/", handleRoot);
+  server.on("/action/", handleAction);
   // Start the server
   server.begin();
   Serial.println("Server started");
@@ -57,7 +60,12 @@ void setup()
 
 void handleRoot()
 {
-  String value = server.arg("a"); // this lets you access a query param (http://x.x.x.x/?a=fwd)
+  server.send(200, "text/html", html);
+}
+
+void handleAction()
+{
+  String value = server.arg("a"); // this lets you access a query param (http://x.x.x.x/action?a=fwd)
 
   if (value == "fwd")
   {
@@ -67,6 +75,7 @@ void handleRoot()
     digitalWrite(a2, HIGH); // Start second motor
     digitalWrite(a3, LOW);
     Serial.println("forward");
+    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"moving forward\"}");
   }
   else if (value == "bkw")
   {
@@ -76,6 +85,7 @@ void handleRoot()
     digitalWrite(a2, LOW); // Start second motor
     digitalWrite(a3, HIGH);
     Serial.println("backward");
+    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"moving backward\"}");
   }
   else if (value == "right")
   {
@@ -85,6 +95,7 @@ void handleRoot()
     digitalWrite(a2, LOW); // Start second motor
     digitalWrite(a3, HIGH);
     Serial.println("right");
+    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"turning right\"}");
   }
   else if (value == "left")
   {
@@ -94,6 +105,7 @@ void handleRoot()
     digitalWrite(a2, HIGH); // Start second motor
     digitalWrite(a3, LOW);
     Serial.println("left");
+    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"turning left\"}");
   }
   else
   {
@@ -103,8 +115,8 @@ void handleRoot()
     digitalWrite(a2, LOW); // Stop second motor
     digitalWrite(a3, LOW);
     Serial.println("stop");
+    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"stopped\"}");
   }
-  server.send(200, "text/html", "<a href=\"/?a=fwd\"><span style=\'font-size:5em;padding-left:1.4em\'>&#9195;</span></a><br>\r\n<br><a href=\"/?a=left\"><span style=\'font-size:5em;\'>&#9194;</span></a>\r\n<a href=\"/?a=stop\"><span style=\'font-size:5em;\'>&#9209;</span></a>\r\n<a href=\"/?a=right\"><span style=\'font-size:5em;\'>&#9193;</span></a>\r\n<br><a href=\"/?a=bkw\"><span style=\'font-size:5em;padding-left:1.4em\'>&#9196;</span></a><style>a:link {text-decoration: none;}</style>");
 }
 
 void loop()
