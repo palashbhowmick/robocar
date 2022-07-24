@@ -1,0 +1,4 @@
+{
+    "sketch": "RoboCar.ino",
+    "board": "arduino:avr:uno"
+}
