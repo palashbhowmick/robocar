@@ -12,31 +12,33 @@
   <script>
     var keydowned = false;
     $(document).ready(function () {
-      $(".key").mousedown(function () {
+
+      $(".key").on("mousedown touchstart", function () {
         console.log("mouse down");
-        restCall("" + $(this).attr("data-key"));
+        ajaxCall("" + $(this).attr("data-key"));
       });
-      $(".key").mouseup(function () {
+      $(".key").on("mouseup touchend", function () {
         console.log("mouse up");
-        restCall(999);
+        ajaxCall(999);
       });
       $(document).keydown(function (event) {
         if (!keydowned) {
           keydowned = true;
           console.log("keydown=" + event.which);
-          restCall("" + event.which);
+          ajaxCall("" + event.which);
           $(`[data-key=${event.which}]`).addClass("active");
         }
       });
       $(document).keyup(function () {
         console.log("keyup");
         keydowned = false;
-        restCall(999);
+        ajaxCall(999);
         $(`[data-key=${event.which}]`).removeClass("active");
       });
     });
 
-    function restCall(action) {
+    function ajaxCall(action) {
+      let a;
       switch (action) {
         case "37":
         case 37:
@@ -68,14 +70,26 @@
           if (textstatus === "timeout") {
             $(".status").html(`Couldn't connect to RoboCar: ${textstatus}`).addClass("error")
           } else {
-            $(".status").html(`ERROR: ${message}`).addClass("error")
+            if (message) {
+              $(".status").html(`ERROR: ${message}`).addClass("error");
+            } else {
+              $(".status").html(`ERROR: ${textstatus}`).addClass("error");
+            }
+
           }
         },
         success: function (resp) {
           if (resp?.message) {
-            $(".status").html(resp.message).removeClass("error")
+            if (resp.message == "obstacle ahead") {
+              $(".status").html(resp.message).addClass("error");
+              $(".key.up").addClass("obstacle");
+
+            } else {
+              $(".status").html(resp.message).removeClass("error");
+              $(".key.up").removeClass("obstacle");
+            }
           } else {
-            $(".status").html(`Connected`).removeClass("error")
+            $(".status").html(`Connected`).removeClass("error");
           }
         },
         timeout: 3000
@@ -106,10 +120,10 @@
     .btn-wrp {
       height: 400px;
       width: 400px;
-      position: absolute;
+      position: fixed;
       left: 50%;
-      top: 70%;
-      transform: translate(-50%, -50%);
+      bottom: 0;
+      transform: translate(-50%, 30%);
     }
 
     .btn:active,
@@ -155,6 +169,10 @@
 
     .error {
       color: red;
+    }
+
+    .obstacle {
+      background-color: red;
     }
 
     iframe {

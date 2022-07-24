@@ -1,33 +1,41 @@
 
 /*****************************************************
+ * Board: NodeMCU 1.0 (ESP-12E Module)
+ *
  * Date: 23 July 2022
  * Written by: Palash Bhowmick
  * ***************************************************/
 #include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
+
 #include "html.h"
 #include "secrets.h"
+#include "MotorController.h"
+
+#define IR_SENSOR_PIN 4 // GPIO-4, D2 of nodemcu esp8266
 
 const char *ssid = SECRET_SSID;
 const char *password = SECRET_PASS;
 
-// Motor driver L293D pin congifuration
-int a0 = 15; // GPIO-15, D8 of nodemcu esp8266
-int a1 = 13; // GPIO-13, D7 of nodemcu esp8266
-int a2 = 12; // GPIO-12, D6 of nodemcu esp8266
-int a3 = 14; // GPIO-14, D5 of nodemcu esp8266
-
 ESP8266WebServer server(80);
+
+MotorController motor(15, // GPIO-15, D8 of nodemcu esp8266
+                      13, // GPIO-13, D7 of nodemcu esp8266
+                      12, // GPIO-12, D6 of nodemcu esp8266
+                      14  // GPIO-14, D5 of nodemcu esp8266
+);
+
+boolean forwarding = false;
 
 void setup()
 {
   Serial.begin(115200);
   delay(10);
   // Declaring L293D control pins as Output
-  pinMode(a0, OUTPUT);
-  pinMode(a1, OUTPUT);
-  pinMode(a2, OUTPUT);
-  pinMode(a3, OUTPUT);
+  motor.init();
+
+  // IR Sensor pin
+  pinMode(IR_SENSOR_PIN, INPUT);
 
   // Connect to WiFi network
   Serial.println();
@@ -69,57 +77,62 @@ void handleAction()
 
   if (value == "fwd")
   {
-    digitalWrite(a0, HIGH); // Start first motor
-    digitalWrite(a1, LOW);
-
-    digitalWrite(a2, HIGH); // Start second motor
-    digitalWrite(a3, LOW);
-    Serial.println("forward");
-    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"moving forward\"}");
+    if (obstacle())
+    {
+      motor.stop();
+      forwarding = false;
+      sendJSON(value, "obstacle ahead");
+    }
+    else
+    {
+      motor.forward();
+      forwarding = true;
+      sendJSON(value, "moving forward");
+    }
   }
   else if (value == "bkw")
   {
-    digitalWrite(a0, LOW); // Start first motor
-    digitalWrite(a1, HIGH);
-
-    digitalWrite(a2, LOW); // Start second motor
-    digitalWrite(a3, HIGH);
-    Serial.println("backward");
-    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"moving backward\"}");
+    motor.backward();
+    forwarding = false;
+    sendJSON(value, "moving backward");
   }
   else if (value == "right")
   {
-    digitalWrite(a0, HIGH); // Start first motor
-    digitalWrite(a1, LOW);
-
-    digitalWrite(a2, LOW); // Start second motor
-    digitalWrite(a3, HIGH);
-    Serial.println("right");
-    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"turning right\"}");
+    motor.right();
+    forwarding = false;
+    sendJSON(value, "turning right");
   }
   else if (value == "left")
   {
-    digitalWrite(a0, LOW); // Start first motor
-    digitalWrite(a1, HIGH);
-
-    digitalWrite(a2, HIGH); // Start second motor
-    digitalWrite(a3, LOW);
-    Serial.println("left");
-    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"turning left\"}");
+    motor.left();
+    forwarding = false;
+    sendJSON(value, "turning left");
   }
   else
   {
-    digitalWrite(a0, LOW); // Stop first motor
-    digitalWrite(a1, LOW);
-
-    digitalWrite(a2, LOW); // Stop second motor
-    digitalWrite(a3, LOW);
-    Serial.println("stop");
-    server.send(200, "application/json", "{\"action\":\"" + value + "\",\"message\":\"stopped\"}");
+    motor.stop();
+    forwarding = false;
+    sendJSON(value, "stopped");
   }
+}
+
+void sendJSON(String action, String message)
+{
+  Serial.println(message);
+  server.send(200, "application/json", "{\"action\":\"" + action + "\",\"message\":\"" + message + "\"}");
+}
+
+boolean obstacle()
+{
+  return (digitalRead(IR_SENSOR_PIN) == 1);
 }
 
 void loop()
 {
   server.handleClient();
+
+  if (obstacle() && forwarding)
+  {
+    motor.stop();
+  }
 }

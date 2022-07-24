@@ -1,6 +1,18 @@
 {
     "files.associations": {
         "*.tcc": "cpp",
-        "streambuf": "cpp"
+        "streambuf": "cpp",
+        "algorithm": "cpp",
+        "functional": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "unordered_map": "cpp",
+        "vector": "cpp",
+        "fstream": "cpp",
+        "iosfwd": "cpp",
+        "tuple": "cpp",
+        "utility": "cpp",
+        "array": "cpp",
+        "type_traits": "cpp"
     }
 }
